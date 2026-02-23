@@ -96,6 +96,7 @@ variables:
     dependsOn:
       compartmentId: compartment_ocid
       vcnId: vcn_ocid
+      vcnCompartmentId: compartment_ocid
 
   # ── Functions Application & Function ─────────────────────────────────
   app_display_name:
