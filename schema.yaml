@@ -1,0 +1,224 @@
+title: "FOCUS Reports – Daily Export to Object Storage"
+description: "Automates the daily copy of OCI FinOps FOCUS Cost & Usage Reports to your Object Storage bucket using an OCI Function triggered by Resource Scheduler."
+schemaVersion: 1.1.0
+version: "20190304"
+locale: "en"
+
+#----------------------------------------------------------------------
+# Variable Groups (UI tabs / sections in ORM)
+#----------------------------------------------------------------------
+variableGroups:
+  - title: "General"
+    visible: true
+    variables:
+      - compartment_ocid
+      - region
+
+  - title: "Networking"
+    visible: true
+    variables:
+      - vcn_ocid
+      - subnet_ocid
+
+  - title: "Functions Application & Function"
+    visible: true
+    description: "Names for the OCI Functions Application and the function itself."
+    variables:
+      - app_display_name
+      - function_display_name
+
+  - title: "Object Storage"
+    visible: true
+    description: "A new bucket will be created in the selected compartment to store daily FOCUS reports."
+    variables:
+      - destination_bucket_name
+
+  - title: "Container Registry (OCIR)"
+    visible: true
+    description: "Credentials used to push the function Docker image to OCI Container Registry during deployment."
+    variables:
+      - ocir_username
+      - ocir_password
+      - repository_name
+
+  - title: "Resource Scheduler"
+    visible: true
+    description: "Controls when the function runs. Uses a 5-field CRON expression (UTC)."
+    variables:
+      - schedule_display_name
+      - schedule_cron_expression
+
+  - title: "IAM Policy"
+    visible: true
+    variables:
+      - policy_name
+
+  - title: "Advanced / Function Config"
+    visible: true
+    variables:
+      - function_memory_in_mbs
+      - function_timeout_in_seconds
+      - function_parameters_json_string
+
+#----------------------------------------------------------------------
+# Variable Definitions
+#----------------------------------------------------------------------
+variables:
+
+  # ── General ─────────────────────────────────────────────────────────
+  compartment_ocid:
+    type: oci:identity:compartment:id
+    title: "Compartment"
+    description: "Compartment where all resources (Function, Scheduler, Policies) will be created."
+    required: true
+
+  region:
+    type: oci:identity:region:name
+    title: "Region"
+    description: "OCI Region for deployment."
+    required: true
+    visible: false   # ORM pre-fills this from the tenancy context
+
+  # ── Networking ───────────────────────────────────────────────────────
+  vcn_ocid:
+    type: oci:core:vcn:id
+    title: "Virtual Cloud Network (VCN)"
+    description: "VCN to attach the Functions Application to."
+    required: true
+    dependsOn:
+      compartmentId: compartment_ocid
+
+  subnet_ocid:
+    type: oci:core:subnet:id
+    title: "Subnet"
+    description: "Subnet for the Functions Application. Must have outbound internet access (NAT Gateway) to reach OCI services."
+    required: true
+    dependsOn:
+      compartmentId: compartment_ocid
+      vcnId: vcn_ocid
+
+  # ── Functions Application & Function ─────────────────────────────────
+  app_display_name:
+    type: string
+    title: "Functions Application Name"
+    description: "Display name for the OCI Functions Application that will host the function."
+    required: true
+    default: "focus-reports-app"
+
+  function_display_name:
+    type: string
+    title: "Function Name"
+    description: "Display name for the OCI Function that copies FOCUS reports."
+    required: true
+    default: "copy-focus-reports"
+
+  # ── Object Storage ───────────────────────────────────────────────────
+  destination_bucket_name:
+    type: string
+    title: "Destination Bucket Name"
+    description: "Name of the Object Storage bucket that will be created to store daily FOCUS reports."
+    required: true
+    default: "Cost_Usage_Reports"
+
+  # ── OCIR ─────────────────────────────────────────────────────────────
+  ocir_username:
+    type: string
+    title: "OCIR Username"
+    description: "OCI username to authenticate with OCIR. Format: oracleidentitycloudservice/<email>  or  <tenancy>/<username>"
+    required: true
+    default: ""
+
+  ocir_password:
+    type: password
+    title: "OCIR Auth Token"
+    description: "OCI Auth Token for OCIR login (generated under User Settings → Auth Tokens)."
+    required: true
+    sensitive: true
+
+  repository_name:
+    type: string
+    title: "OCIR Repository Name"
+    description: "Name of the Container Registry repository. Will be created automatically if it does not exist."
+    required: true
+    default: "focus-reports-repo"
+
+  # ── Scheduler ────────────────────────────────────────────────────────
+  schedule_display_name:
+    type: string
+    title: "Schedule Name"
+    required: true
+    default: "focus-reports-daily-schedule"
+
+  schedule_cron_expression:
+    type: string
+    title: "CRON Schedule (UTC)"
+    description: "5-field CRON expression for when the function runs. Default: daily at 02:00 UTC."
+    required: true
+    default: "0 2 * * *"
+    pattern: "^(\\*|[0-9,-/]+) (\\*|[0-9,-/]+) (\\*|[0-9,-/]+) (\\*|[0-9,-/]+) (\\*|[0-9,-/]+)$"
+
+  # ── IAM ──────────────────────────────────────────────────────────────
+  # No dynamic group – the function OCID is used directly in policy statements.
+  policy_name:
+    type: string
+    title: "Policy Name"
+    required: true
+    default: "policy-focus-reports-automation"
+
+  # ── Advanced ─────────────────────────────────────────────────────────
+  function_memory_in_mbs:
+    type: integer
+    title: "Function Memory (MB)"
+    minimum: 128
+    maximum: 2048
+    required: true
+    default: 512
+
+  function_timeout_in_seconds:
+    type: integer
+    title: "Function Timeout (seconds)"
+    minimum: 30
+    maximum: 300
+    required: true
+    default: 300
+
+  function_parameters_json_string:
+    type: string
+    title: "Extra Function Config (JSON)"
+    description: "Optional JSON key-value pairs passed as function config environment variables. Example: {\"LOG_LEVEL\": \"DEBUG\"}"
+    required: false
+    default: ""
+
+#----------------------------------------------------------------------
+# Outputs shown in ORM after apply
+#----------------------------------------------------------------------
+outputs:
+  function_ocid:
+    title: "Function OCID (used in IAM policies)"
+    type: copyableString
+    visible: true
+
+  destination_bucket_name:
+    title: "Destination Bucket"
+    type: copyableString
+    visible: true
+
+  function_id:
+    title: "Function OCID"
+    type: copyableString
+    visible: true
+
+  schedule_ocid:
+    title: "Resource Scheduler Schedule OCID"
+    type: copyableString
+    visible: true
+
+  function_invoke_endpoint:
+    title: "Function Invoke Endpoint"
+    type: link
+    visible: true
+
+  next_steps:
+    title: "Post-Deployment Checklist"
+    type: string
+    visible: true
