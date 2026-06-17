@@ -19,8 +19,14 @@ variable "region" {
 
 # ── Network ──────────────────────────────────────────────────────────────────
 variable "compartment_ocid" {
-  description = "Compartment where all resources are created"
+  description = "Compartment where all resources (Function, Scheduler, Bucket, Policies) are created"
   type        = string
+}
+
+variable "network_compartment_ocid" {
+  description = "Compartment where the VCN and subnet reside. Leave blank to use the same compartment as the Function."
+  type        = string
+  default     = ""
 }
 
 variable "vcn_ocid" {

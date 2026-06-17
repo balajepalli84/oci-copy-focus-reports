@@ -15,6 +15,15 @@ locals {
     ])
   )
 
+  # Resolve network compartment: use the dedicated network_compartment_ocid
+  # when provided, otherwise fall back to the main compartment_ocid.
+  # This keeps single-compartment deployments working with no extra input.
+  network_compartment_id = (
+    coalesce(var.network_compartment_ocid, "_NONE_") != "_NONE_"
+    ? var.network_compartment_ocid
+    : var.compartment_ocid
+  )
+
   # Read function metadata once from func.yaml so all resources stay in sync
   func_yaml        = yamldecode(file("${var.function_working_dir}/func.yaml"))
   function_name    = local.func_yaml["name"]
